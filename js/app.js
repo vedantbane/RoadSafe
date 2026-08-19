@@ -74,7 +74,15 @@ lng: 88.3520,
 photo: null
 }
 ];
-function getReports() {
+async function getReports() {
+try {
+const res = await fetch('/api/reports');
+if (!res.ok) throw new Error('API Error');
+const data = await res.json();
+if (data && data.length > 0) return data;
+} catch (e) {
+console.error('Fetch failed, falling back to local storage', e);
+}
 const stored = localStorage.getItem(STORAGE_KEY);
 if (stored) {
 try {
@@ -83,21 +91,31 @@ return JSON.parse(stored);
 return [...MOCK_REPORTS];
 }
 }
-localStorage.setItem(STORAGE_KEY, JSON.stringify(MOCK_REPORTS));
 return [...MOCK_REPORTS];
-
 }
 function saveReports(reports) {
 localStorage.setItem(STORAGE_KEY, JSON.stringify(reports));
 }
-function addReport(report) {
-const reports = getReports();
+async function addReport(report) {
+try {
+const res = await fetch('/api/reports', {
+method: 'POST',
+headers: { 'Content-Type': 'application/json' },
+body: JSON.stringify(report)
+});
+if (res.ok) {
+return await res.json();
+}
+} catch (e) {
+console.error('Failed to save to backend', e);
+}
+const reports = await getReports();
 reports.unshift(report);
 saveReports(reports);
 return report;
 }
-function updateReport(id, changes) {
-const reports = getReports();
+async function updateReport(id, changes) {
+const reports = await getReports();
 const reportIndex = reports.findIndex(report => report.id === id && report.isOwner);
 if (reportIndex === -1) return false;
 reports[reportIndex] = { ...reports[reportIndex], ...changes };
@@ -179,42 +197,9 @@ function initReportForm() {
 
 const form = document.getElementById('reportForm');
 if (!form) return;
-const photoInput = document.getElementById('photo');
-const photoUpload = document.getElementById('photoUpload');
-const photoPreview = document.getElementById('photoPreview');
-const previewImg = document.getElementById('previewImg');
+
 const locBtn = document.getElementById('getLocation');
-if (photoUpload && photoInput) {
-photoUpload.addEventListener('click', () => photoInput.click());
-photoUpload.addEventListener('dragover', e => {
-e.preventDefault();
-photoUpload.classList.add('dragover');
-});
-photoUpload.addEventListener('dragleave', () => photoUpload.classList.remove('dragover'));
-photoUpload.addEventListener('drop', e => {
-e.preventDefault();
-photoUpload.classList.remove('dragover');
-if (e.dataTransfer.files[0]) {
-photoInput.files = e.dataTransfer.files;
-handlePhoto(e.dataTransfer.files[0]);
-}
-});
-photoInput.addEventListener('change', () => {
-if (photoInput.files[0]) handlePhoto(photoInput.files[0]);
-});
-}
-function handlePhoto(file) {
-if (!file.type.startsWith('image/')) {
-showToast('Please select an image file', 'error');
-return;
-}
-const reader = new FileReader();
-reader.onload = e => {
-previewImg.src = e.target.result;
-photoPreview.style.display = 'block';
-};
-reader.readAsDataURL(file);
-}
+
 if (locBtn) {
 locBtn.addEventListener('click', () => {
 if (!navigator.geolocation) {
@@ -242,7 +227,7 @@ locBtn.textContent = '■ Use My Location';
 );
 });
 }
-form.addEventListener('submit', e => {
+form.addEventListener('submit', async e => {
 e.preventDefault();
 const title = document.getElementById('title').value.trim();
 const location = document.getElementById('location').value.trim();
@@ -256,12 +241,8 @@ if (!title || !location || !severity || !description) {
 showToast('Please fill all required fields', 'error');
 return;
 }
-let photoData = null;
-if (previewImg && previewImg.src && previewImg.src.startsWith('data:')) {
-photoData = previewImg.src;
-}
+
 const report = {
-id: generateId(),
 title,
 location,
 category,
@@ -272,14 +253,12 @@ date: new Date().toISOString().slice(0, 10),
 reporter,
 isOwner: true,
 lat,
-lng,
-photo: photoData
+lng
 };
-addReport(report);
+await addReport(report);
 showToast('Report submitted successfully! Thank you.');
 form.reset();
-if (photoPreview) photoPreview.style.display = 'none';
-if (previewImg) previewImg.src = '';
+
 setTimeout(() => {
 window.location.href = 'reports.html';
 }, 1200);
@@ -302,16 +281,13 @@ if (!grid) return;
 const statusFilter = document.getElementById('filterStatus');
 const severityFilter = document.getElementById('filterSeverity');
 const searchInput = document.getElementById('searchReports');
-const myReportsButton = document.getElementById('toggleMyReports');
-const editor = document.getElementById('reportEditor');
-const editorForm = document.getElementById('reportEditorForm');
-let showingMyReports = new URLSearchParams(window.location.search).get('view') === 'mine';
-function render() {
-let reports = getReports();
+
+async function render() {
+let reports = await getReports();
 const status = statusFilter?.value || 'all';
 const severity = severityFilter?.value || 'all';
 const search = (searchInput?.value || '').toLowerCase();
-if (showingMyReports) reports = reports.filter(r => r.isOwner);
+
 if (status !== 'all') reports = reports.filter(r => r.status === status);
 if (severity !== 'all') reports = reports.filter(r => r.severity === severity);
 if (search) {
@@ -326,16 +302,12 @@ grid.innerHTML = `
 <div class="empty-state" style="grid-column: 1 / -1;">
 <div class="icon">■■</div>
 <h3>No reports found</h3>
-<p>${showingMyReports ? 'You have not submitted any reports yet.' : 'Try changing filters or submit a new report.'}</p>
+<p>Try changing filters or submit a new report.</p>
 </div>`;
 return;
 }
 grid.innerHTML = reports.map(r => `
 <article class="report-card">
-<div class="report-img">
-${r.photo ? `<img src="${r.photo}" alt="${r.title}">` : '■■'}
-${statusBadge(r.status)}
-</div>
 <div class="report-body">
 <h3>${escapeHtml(r.title)}</h3>
 <div class="report-meta">
@@ -344,16 +316,14 @@ ${statusBadge(r.status)}
 <div class="report-meta">
 <span class="severity-badge ${severityClass(r.severity)}">${r.severity.toUpperCase()}</span>
 <span>${r.category}</span>
+${statusBadge(r.status)}
 </div>
 <p class="report-desc">${escapeHtml(r.description)}</p>
 <div class="report-footer">
 <span>■ ${escapeHtml(r.reporter)}</span>
 <span>${formatDate(r.date)}</span>
 </div>
-${r.isOwner ? `
-<div class="report-actions">
-<button type="button" class="btn btn-secondary btn-sm edit-report" data-report-id="${r.id}">Manage report</button>
-</div>` : ''}
+
 </div>
 </article>
 `).join('');
@@ -366,68 +336,12 @@ return div.innerHTML;
 statusFilter?.addEventListener('change', render);
 severityFilter?.addEventListener('change', render);
 searchInput?.addEventListener('input', render);
-myReportsButton?.addEventListener('click', () => {
-showingMyReports = !showingMyReports;
-myReportsButton.classList.toggle('active', showingMyReports);
-myReportsButton.textContent = showingMyReports ? 'Showing Your Reports' : 'Your Reports';
-render();
-});
-grid.addEventListener('click', event => {
-const button = event.target.closest('.edit-report');
-if (!button) return;
-const report = getReports().find(item => item.id === button.dataset.reportId && item.isOwner);
-if (!report) return;
-openReportEditor(report);
-});
-function openReportEditor(report) {
-if (!editor) return;
-document.getElementById('editorReportId').value = report.id;
-document.getElementById('editorTitleInput').value = report.title;
-document.getElementById('editorLocation').value = report.location;
-document.getElementById('editorCategory').value = report.category;
-document.getElementById('editorSeverity').value = report.severity;
-document.getElementById('editorDescription').value = report.description;
-document.getElementById('editorStatus').value = report.status;
-editor.classList.add('open');
-editor.setAttribute('aria-hidden', 'false');
-document.getElementById('editorTitleInput').focus();
-}
-function closeReportEditor() {
-if (!editor) return;
-editor.classList.remove('open');
-editor.setAttribute('aria-hidden', 'true');
-}
-editor?.addEventListener('click', event => {
-if (event.target === editor || event.target.closest('[data-close-editor]')) closeReportEditor();
-});
-editorForm?.addEventListener('submit', event => {
-event.preventDefault();
-const id = document.getElementById('editorReportId').value;
-const changes = {
-title: document.getElementById('editorTitleInput').value.trim(),
-location: document.getElementById('editorLocation').value.trim(),
-category: document.getElementById('editorCategory').value,
-severity: document.getElementById('editorSeverity').value,
-description: document.getElementById('editorDescription').value.trim(),
-status: document.getElementById('editorStatus').value
-};
-if (!changes.title || !changes.location || !changes.description) return;
-if (updateReport(id, changes)) {
-closeReportEditor();
-showToast('Report changes saved.');
-render();
-}
-});
 
-if (showingMyReports && myReportsButton) {
-myReportsButton.classList.add('active');
-myReportsButton.textContent = 'Showing Your Reports';
-}
 render();
 initMap();
 }
 let myMap = null;
-function initMap() {
+async function initMap() {
 const mapEl = document.getElementById('map');
 if (!mapEl || typeof L === 'undefined') return;
 
@@ -440,7 +354,7 @@ myMap = L.map('map').setView([22.5, 78.5], 5);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 attribution: '&copy; OpenStreetMap'
 }).addTo(myMap);
-const reports = getReports();
+const reports = await getReports();
 const iconColors = { high: '#EF476F', medium: '#FFD166', low: '#06D6A0' };
 reports.forEach(r => {
 if (r.lat && r.lng) {
@@ -460,8 +374,8 @@ ${r.location}<br>
 });
 }
 // Stats on home
-function initHomeStats() {
-const reports = getReports();
+async function initHomeStats() {
+const reports = await getReports();
 const totalEl = document.getElementById('statTotal');
 const fixedEl = document.getElementById('statFixed');
 const highEl = document.getElementById('statHigh');
@@ -471,28 +385,7 @@ if (fixedEl) fixedEl.textContent = reports.filter(r => r.status === 'fixed').len
 if (highEl) highEl.textContent = reports.filter(r => r.severity === 'high').length;
 if (progressEl) progressEl.textContent = reports.filter(r => r.status === 'progress').length;
 }
-function initBiometrics() {
-const loginBtn = document.getElementById('biometricLoginBtn');
-if (!loginBtn) return;
-loginBtn.addEventListener('click', async () => {
-try {
-// Native WebAuthn API for Fingerprint / FaceID
-const publicKey = {
-challenge: new Uint8Array(32),
-rp: { name: "RoadSafe App" },
-user: { id: new Uint8Array(16), name: "user@example.com", displayName: "User" },
-pubKeyCredParams: [{ type: "public-key", alg: -7 }]
-};
-const credential = await navigator.credentials.create({ publicKey });
-if (credential) {
-showToast('Biometric authentication successful!');
-}
-} catch (err) {
-console.error(err);
-showToast('Biometric authentication failed or unsupported.', 'error');
-}
-});
-}
+
 
 function initPushNotifications() {
 const pushBtn = document.getElementById('pushNotificationBtn');
@@ -599,7 +492,6 @@ setTimeout(() => {
 initReportForm();
 initReportsPage();
 initHomeStats();
-initBiometrics();
 initPushNotifications();
 }, 50);
 

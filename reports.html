@@ -57,7 +57,7 @@ RoadSafe
 <option value="medium">Medium</option>
 <option value="low">Low</option>
 </select>
-<button type="button" class="btn btn-secondary btn-sm" id="toggleMyReports">Your Reports</button>
+
 <a href="report.html" class="btn btn-primary btn-sm">+ New Report</a>
 </div>
 <div class="reports-grid" id="reportsGrid">
@@ -65,59 +65,7 @@ RoadSafe
 </div>
 </div>
 </section>
-<div class="modal-backdrop" id="reportEditor" aria-hidden="true">
-<section class="report-editor" role="dialog" aria-modal="true" aria-labelledby="editorTitle">
-<div class="editor-header">
-<div>
-<p class="editor-eyebrow">YOUR REPORT</p>
-<h2 id="editorTitle">Edit report</h2>
-</div>
-<button type="button" class="editor-close" data-close-editor aria-label="Close editor">×</button>
-</div>
-<form id="reportEditorForm">
-<input type="hidden" id="editorReportId">
-<div class="form-group">
-<label for="editorTitleInput">Issue title</label>
-<input id="editorTitleInput" class="form-control" required>
-</div>
-<div class="form-group">
-<label for="editorLocation">Location</label>
-<input id="editorLocation" class="form-control" required>
-</div>
-<div class="form-row">
-<div class="form-group">
-<label for="editorCategory">Category</label>
-<select id="editorCategory" class="form-control">
-<option value="Pothole">Pothole</option><option value="Crack">Road Crack</option>
-<option value="Debris">Debris / Obstacle</option><option value="Hazard">Open Manhole / Hazard</option><option value="Other">Other</option>
-</select>
-</div>
-<div class="form-group">
-<label for="editorSeverity">Severity</label>
-<select id="editorSeverity" class="form-control">
-<option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option>
-</select>
-</div>
-</div>
-<div class="form-group">
-<label for="editorDescription">Description</label>
-<textarea id="editorDescription" class="form-control" required></textarea>
-</div>
-<div class="status-picker">
-<span>Status</span>
-<select id="editorStatus" class="form-control">
-<option value="reported">Reported</option>
-<option value="progress">In Progress</option>
-<option value="fixed">Fixed</option>
-</select>
-</div>
-<div class="editor-actions">
-<button type="button" class="btn btn-secondary" data-close-editor>Cancel</button>
-<button type="submit" class="btn btn-primary">Save changes</button>
-</div>
-</form>
-</section>
-</div>
+
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="js/app.js"></script>

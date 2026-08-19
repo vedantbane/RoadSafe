@@ -1,4 +1,4 @@
--const express = require('express');
+const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 require('dotenv').config();
@@ -9,21 +9,39 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// MongoDB Connection
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('Connected to MongoDB'))
-  .catch(err => console.error('Could not connect to MongoDB:', err));
+// Serverless MongoDB Connection Caching
+let cachedDb = null;
 
-// Schema and Model for a Report
+async function connectToDatabase() {
+  if (cachedDb) {
+    return cachedDb;
+  }
+  
+  if (!process.env.MONGODB_URI) {
+    throw new Error('Please define the MONGODB_URI environment variable');
+  }
+
+  const db = await mongoose.connect(process.env.MONGODB_URI);
+  cachedDb = db;
+  return db;
+}
+
+// Schema and Model for a Report matching the frontend structure
 const reportSchema = new mongoose.Schema({
   title: { type: String, required: true },
   description: { type: String, required: true },
   location: { type: String, required: true },
-  status: { type: String, default: 'Pending' },
-  createdAt: { type: Date, default: Date.now }
+  category: { type: String, required: true },
+  severity: { type: String, required: true },
+  status: { type: String, default: 'reported' }, // 'reported', 'progress', 'fixed'
+  reporter: { type: String, default: 'Anonymous' },
+  lat: { type: Number },
+  lng: { type: Number },
+  date: { type: Date, default: Date.now }
 });
 
-const Report = mongoose.model('Report', reportSchema);
+// Avoid OverwriteModelError in serverless environments
+const Report = mongoose.models.Report || mongoose.model('Report', reportSchema);
 
 // Routes
 app.get('/api', (req, res) => {
@@ -33,9 +51,18 @@ app.get('/api', (req, res) => {
 // Get all reports
 app.get('/api/reports', async (req, res) => {
   try {
-    const reports = await Report.find().sort({ createdAt: -1 });
-    res.json(reports);
+    await connectToDatabase();
+    const reports = await Report.find().sort({ date: -1 });
+    
+    // Map _id to id for frontend compatibility
+    const formattedReports = reports.map(r => ({
+      ...r.toObject(),
+      id: r._id.toString()
+    }));
+    
+    res.json(formattedReports);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Failed to fetch reports' });
   }
 });
@@ -43,14 +70,28 @@ app.get('/api/reports', async (req, res) => {
 // Create a new report
 app.post('/api/reports', async (req, res) => {
   try {
+    await connectToDatabase();
     const newReport = new Report({
       title: req.body.title,
       description: req.body.description,
       location: req.body.location,
+      category: req.body.category,
+      severity: req.body.severity,
+      status: req.body.status || 'reported',
+      reporter: req.body.reporter || 'Anonymous',
+      lat: req.body.lat,
+      lng: req.body.lng,
+      date: req.body.date || new Date()
     });
     const savedReport = await newReport.save();
-    res.status(201).json(savedReport);
+    
+    // Send back with id
+    res.status(201).json({
+      ...savedReport.toObject(),
+      id: savedReport._id.toString()
+    });
   } catch (err) {
+    console.error(err);
     res.status(400).json({ error: 'Failed to create report' });
   }
 });
