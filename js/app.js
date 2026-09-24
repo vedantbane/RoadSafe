@@ -10,7 +10,7 @@ location: 'MG Road, near Metro Station, Bengaluru',
 category: 'Pothole',
 severity: 'high',
 description: 'Deep pothole causing vehicle damage. Water logged after rain.',
-status: 'reported',
+status: 'Pending',
 date: '2026-07-28',
 reporter: 'Rahul S.',
 lat: 12.9750,
@@ -24,7 +24,7 @@ location: 'Link Road, Andheri West, Mumbai',
 category: 'Crack',
 severity: 'medium',
 description: 'Multiple cracks spanning 20 meters. Risk of further damage.',
-status: 'progress',
+status: 'In Progress',
 date: '2026-07-25',
 reporter: 'Priya M.',
 lat: 19.1364,
@@ -38,7 +38,7 @@ location: 'NH-48, near Vadodara',
 category: 'Debris',
 severity: 'low',
 description: 'Construction debris left on shoulder, partially blocking view.',
-status: 'fixed',
+status: 'Resolved',
 date: '2026-07-20',
 reporter: 'Amit K.',
 lat: 22.3072,
@@ -52,7 +52,7 @@ location: 'Sector 18, Noida',
 category: 'Hazard',
 severity: 'high',
 description: 'Open manhole with broken cover. Extremely dangerous at night.',
-status: 'reported',
+status: 'Pending',
 date: '2026-07-29',
 reporter: 'Sneha R.',
 lat: 28.5700,
@@ -66,7 +66,7 @@ location: 'Park Street, Kolkata',
 category: 'Other',
 severity: 'medium',
 description: 'Speed breaker is uneven and too high, damaging low cars.',
-status: 'progress',
+status: 'In Progress',
 date: '2026-07-22',
 reporter: 'Vikram D.',
 lat: 22.5520,
@@ -151,16 +151,19 @@ return `sev-${sev}`;
 }
 function statusBadge(status) {
 const map = {
-reported: 'badge-reported',
-progress: 'badge-progress',
-fixed: 'badge-fixed'
+Pending: 'badge-pending',
+'Under Review': 'badge-review',
+'In Progress': 'badge-progress',
+Resolved: 'badge-resolved',
+Rejected: 'badge-rejected'
 };
-const labels = {
-reported: 'Reported',
-progress: 'In Progress',
-fixed: 'Fixed'
-};
-return `<span class="badge ${map[status] || 'badge-reported'}">${labels[status] || status}</span>`;
+return `<span class="badge ${map[status] || 'badge-pending'}">${escapeHtml(status || 'Pending')}</span>`;
+}
+
+function escapeHtml(value) {
+const div = document.createElement('div');
+div.textContent = value == null ? '' : String(value);
+return div.innerHTML;
 }
 // Theme
 function initTheme() {
@@ -203,10 +206,15 @@ const locBtn = document.getElementById('getLocation');
 if (locBtn) {
 locBtn.addEventListener('click', () => {
 if (!navigator.geolocation) {
-showToast('Geolocation not supported', 'error');
+showToast('Location is not supported by this browser', 'error');
+return;
+}
+if (!window.isSecureContext) {
+showToast('Location requires HTTPS or localhost', 'error');
 return;
 }
 locBtn.disabled = true;
+const originalText = locBtn.textContent;
 locBtn.textContent = 'Locating...';
 navigator.geolocation.getCurrentPosition(
 pos => {
@@ -215,15 +223,21 @@ const lng = pos.coords.longitude.toFixed(5);
 document.getElementById('location').value = `Lat: ${lat}, Lng: ${lng}`;
 document.getElementById('lat').value = lat;
 document.getElementById('lng').value = lng;
-showToast('Location captured!');
+showToast('Location captured');
 locBtn.disabled = false;
-locBtn.textContent = '■ Use My Location';
+locBtn.textContent = originalText;
 },
-() => {
-showToast('Unable to get location', 'error');
+error => {
+const messages = {
+1: 'Location permission was denied. Allow it in your browser settings.',
+2: 'Your location is currently unavailable. Try again outdoors.',
+3: 'Location request timed out. Please try again.'
+};
+showToast(messages[error.code] || 'Unable to get location', 'error');
 locBtn.disabled = false;
-locBtn.textContent = '■ Use My Location';
-}
+locBtn.textContent = originalText;
+},
+{ enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
 );
 });
 }
@@ -248,9 +262,11 @@ location,
 category,
 severity,
 description,
-status: 'reported',
+status: 'Pending',
 date: new Date().toISOString().slice(0, 10),
 reporter,
+reporterEmail: document.getElementById('reporterEmail')?.value.trim() || '',
+reporterPhone: document.getElementById('reporterPhone')?.value.trim() || '',
 isOwner: true,
 lat,
 lng
@@ -259,9 +275,7 @@ await addReport(report);
 showToast('Report submitted successfully! Thank you.');
 form.reset();
 
-setTimeout(() => {
-window.location.href = 'reports.html';
-}, 1200);
+setTimeout(() => navigateTo('reports.html'), 1200);
 });
 
 // Auto-scroll for keyboards
@@ -328,11 +342,6 @@ ${statusBadge(r.status)}
 </article>
 `).join('');
 }
-function escapeHtml(str) {
-const div = document.createElement('div');
-div.textContent = str;
-return div.innerHTML;
-}
 statusFilter?.addEventListener('change', render);
 severityFilter?.addEventListener('change', render);
 searchInput?.addEventListener('input', render);
@@ -381,9 +390,9 @@ const fixedEl = document.getElementById('statFixed');
 const highEl = document.getElementById('statHigh');
 const progressEl = document.getElementById('statProgress');
 if (totalEl) totalEl.textContent = reports.length;
-if (fixedEl) fixedEl.textContent = reports.filter(r => r.status === 'fixed').length;
+if (fixedEl) fixedEl.textContent = reports.filter(r => r.status === 'Resolved').length;
 if (highEl) highEl.textContent = reports.filter(r => r.severity === 'high').length;
-if (progressEl) progressEl.textContent = reports.filter(r => r.status === 'progress').length;
+if (progressEl) progressEl.textContent = reports.filter(r => r.status === 'In Progress').length;
 }
 
 
@@ -405,38 +414,153 @@ showToast('Permission denied for notifications', 'error');
 });
 }
 
+async function getCurrentUser() {
+try {
+const response = await fetch('/api/auth/me', { credentials: 'same-origin' });
+if (!response.ok) return null;
+const data = await response.json();
+return data.user;
+} catch (error) {
+return null;
+}
+}
+
+async function initAccountNavigation() {
+const user = await getCurrentUser();
+document.querySelectorAll('.account-nav-slot').forEach(slot => {
+slot.innerHTML = user ? `<a href="account.html">Account</a>${user.role === 'admin' ? '<a href="admin.html">Admin</a>' : ''}` : '<a href="account.html">Sign in</a>';
+});
+}
+
+function reportCard(report, includeReporter = false) {
+return `<article class="report-card"><div class="report-body"><h3>${escapeHtml(report.title)}</h3><div class="report-meta"><span>${escapeHtml(report.location)}</span></div><div class="report-meta"><span class="severity-badge ${severityClass(report.severity)}">${escapeHtml(report.severity).toUpperCase()}</span><span>${escapeHtml(report.category)}</span>${statusBadge(report.status)}</div><p class="report-desc">${escapeHtml(report.description)}</p>${includeReporter ? `<div class="report-meta"><span>Reporter: ${escapeHtml(report.reporter || 'Anonymous')}</span>${report.reporterEmail ? `<span>${escapeHtml(report.reporterEmail)}</span>` : ''}</div>` : ''}<div class="report-footer"><span>${formatDate(report.date)}</span></div></div></article>`;
+}
+
+function initAccountPage() {
+const loginForm = document.getElementById('loginForm');
+const registerForm = document.getElementById('registerForm');
+const accountPanel = document.getElementById('accountPanel');
+const authPanel = document.getElementById('authPanel');
+if (!loginForm && !registerForm && !accountPanel) return;
+
+async function renderAccount() {
+const user = await getCurrentUser();
+if (!user) return;
+authPanel?.setAttribute('hidden', '');
+accountPanel?.removeAttribute('hidden');
+const name = document.getElementById('accountName');
+if (name) name.textContent = user.name || user.email;
+const reportsGrid = document.getElementById('myReportsGrid');
+if (reportsGrid) {
+const response = await fetch('/api/reports/mine', { credentials: 'same-origin' });
+const reports = response.ok ? await response.json() : [];
+reportsGrid.innerHTML = reports.length ? reports.map(report => reportCard(report)).join('') : '<div class="empty-state"><h3>No reports yet</h3><p>Your signed-in reports will appear here.</p></div>';
+}
+}
+
+async function submitAuth(event, endpoint) {
+event.preventDefault();
+const form = event.currentTarget;
+const payload = Object.fromEntries(new FormData(form));
+const response = await fetch(endpoint, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+const data = await response.json().catch(() => ({}));
+if (!response.ok) return showToast(data.error || 'Unable to continue', 'error');
+showToast('You are signed in');
+await initAccountNavigation();
+renderAccount();
+}
+
+loginForm?.addEventListener('submit', event => submitAuth(event, '/api/auth/login'));
+registerForm?.addEventListener('submit', event => submitAuth(event, '/api/auth/register'));
+document.getElementById('logoutButton')?.addEventListener('click', async () => {
+await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
+window.location.href = 'account.html';
+});
+renderAccount();
+}
+
+function initAdminDashboard() {
+const grid = document.getElementById('adminReportsGrid');
+if (!grid) return;
+let reports = [];
+async function render() {
+const response = await fetch('/api/reports', { credentials: 'same-origin' });
+reports = response.ok ? await response.json() : [];
+grid.innerHTML = reports.map(report => `${reportCard(report, true)}<div class="admin-status-control"><label for="status-${report.id}">Status</label><select id="status-${report.id}" class="form-control">${['Pending', 'Under Review', 'In Progress', 'Resolved', 'Rejected'].map(status => `<option ${status === report.status ? 'selected' : ''}>${status}</option>`).join('')}</select><button class="btn btn-primary btn-sm" data-report-id="${report.id}">Update</button></div>`).join('') || '<div class="empty-state"><h3>No reports found</h3></div>';
+}
+grid.addEventListener('click', async event => {
+const button = event.target.closest('[data-report-id]');
+if (!button) return;
+const reportId = button.dataset.reportId;
+const status = document.getElementById(`status-${reportId}`).value;
+button.disabled = true;
+const response = await fetch(`/api/reports/${reportId}/status`, { method: 'PATCH', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
+const data = await response.json().catch(() => ({}));
+if (!response.ok) {
+showToast(data.error || 'Unable to update status', 'error');
+button.disabled = false;
+if (response.status === 401 || response.status === 403) window.location.href = 'account.html';
+return;
+}
+showToast('Report status updated');
+render();
+});
+
+getCurrentUser().then(user => {
+if (!user || user.role !== 'admin') {
+window.location.replace('account.html');
+return;
+}
+render();
+});
+}
+
 // Boot
 document.addEventListener('DOMContentLoaded', () => {
 initTheme();
 initNav();
+initAccountNavigation();
+initPushNotifications();
+if (!document.getElementById('app-content')) {
 document.querySelector('.theme-toggle')?.addEventListener('click', toggleTheme);
+}
 initSPA(); // Initialize Single Page Application Router
+initAccountPage();
+initAdminDashboard();
 });
 
 /* SPA Router */
 function initSPA() {
+if (!document.getElementById('app-content')) return;
 // Initial load based on URL or default to home.html
 const initialPage = window.location.pathname.endsWith('/') || window.location.pathname.endsWith('index.html') ? 'home.html' : window.location.pathname.split('/').pop();
 loadPage(initialPage, false);
 
 document.addEventListener('click', e => {
-const link = e.target.closest('a.spa-link');
-if (link) {
+const themeButton = e.target.closest('.theme-toggle');
+if (themeButton && themeButton.tagName === 'BUTTON') {
+toggleTheme();
+return;
+}
+const link = e.target.closest('a[href]');
+if (!link || link.target || link.hasAttribute('download')) return;
+const url = new URL(link.href, window.location.href);
+if (url.origin !== window.location.origin || !url.pathname.endsWith('.html')) return;
 e.preventDefault();
-const href = link.getAttribute('href');
-if (href) {
-loadPage(href, true);
-updateBottomNav(href);
-}
-}
+navigateTo(url.pathname.split('/').pop());
 });
 
 window.addEventListener('popstate', e => {
-if (e.state && e.state.page) {
-loadPage(e.state.page, false, true);
-updateBottomNav(e.state.page);
-}
+const page = e.state?.page || window.location.pathname.split('/').pop() || 'home.html';
+loadPage(page, false, true);
+updateBottomNav(page);
 });
+}
+
+function navigateTo(url) {
+if (!url) return;
+loadPage(url, true);
+updateBottomNav(url);
 }
 
 async function loadPage(url, pushState = true, isBack = false) {
@@ -493,6 +617,9 @@ initReportForm();
 initReportsPage();
 initHomeStats();
 initPushNotifications();
+initAccountNavigation();
+initAccountPage();
+initAdminDashboard();
 }, 50);
 
 } catch (err) {
@@ -513,8 +640,9 @@ progressBar.style.opacity = '1';
 }
 
 function updateBottomNav(url) {
+const page = url.split('/').pop();
 document.querySelectorAll('.bottom-nav .nav-item').forEach(nav => {
 nav.classList.remove('active');
-if (nav.getAttribute('href') === url) nav.classList.add('active');
+if (nav.getAttribute('href') === page) nav.classList.add('active');
 });
 }

@@ -262,9 +262,11 @@ display: grid; place-items: center; color: white; font-size: 2.5rem; position: r
 position: absolute; top: 12px; right: 12px; padding: 0.3rem 0.7rem;
 border-radius: 20px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase;
 }
-.badge-reported { background: #FEF3C7; color: #92400E; }
+.badge-pending { background: #FEF3C7; color: #92400E; }
+.badge-review { background: #E0E7FF; color: #3730A3; }
 .badge-progress { background: #DBEAFE; color: #1E40AF; }
-.badge-fixed { background: #D1FAE5; color: #065F46; }
+.badge-resolved { background: #D1FAE5; color: #065F46; }
+.badge-rejected { background: #FEE2E2; color: #991B1B; }
 .severity-badge {
   display: inline-block; padding: 0.2rem 0.55rem; border-radius: 6px;
   font-size: 0.75rem; font-weight: 700;
@@ -288,6 +290,14 @@ font-size: 0.82rem; color: var(--text-muted);
 display: flex; justify-content: flex-end; align-items: center; gap: 0.75rem;
 margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px solid var(--border);
 }
+.auth-layout { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem; align-items: start; }
+.form-card h2 { font-size: 1.3rem; margin-bottom: 1.2rem; }
+.account-heading, .admin-intro { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1.5rem; }
+.account-heading p, .admin-intro p { color: var(--text-muted); }
+.admin-reports-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.4rem; }
+.admin-status-control { display: grid; grid-template-columns: 1fr auto; gap: 0.65rem; align-items: end; padding: 1rem; margin-top: -1.4rem; border: 1px solid var(--border); border-top: 0; background: var(--bg-card); border-radius: 0 0 var(--radius) var(--radius); }
+.admin-status-control label { grid-column: 1 / -1; font-size: 0.85rem; font-weight: 700; }
+.admin-status-control select { min-width: 0; }
 #toggleMyReports.active { background: var(--primary); color: #fff; border-color: var(--primary); }
 .modal-backdrop { display: none; position: fixed; top: 72px; right: 0; bottom: 0; left: 0; z-index: 999; padding: 1rem; background: rgba(15, 23, 42, 0.6); overflow-y: auto; }
 .modal-backdrop.open { display: grid; place-items: center; }
@@ -419,6 +429,7 @@ to { transform: translateX(0); opacity: 1; }
 
   /* report cards */
   .reports-grid { grid-template-columns: 1fr; }
+  .auth-layout { grid-template-columns: 1fr; }
 }
 @media (max-width: 480px) {
   .stat-row { grid-template-columns: 1fr 1fr; }

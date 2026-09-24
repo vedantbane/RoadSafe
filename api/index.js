@@ -1,100 +1,216 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const { createSessionToken, hashPassword, TOKEN_TTL_SECONDS, verifyPassword, verifyToken } = require('./auth');
 require('dotenv').config();
 
 const app = express();
+const REPORT_STATUSES = ['Pending', 'Under Review', 'In Progress', 'Resolved', 'Rejected'];
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 
-// Serverless MongoDB Connection Caching
 let cachedDb = null;
 
 async function connectToDatabase() {
-  if (cachedDb) {
-    return cachedDb;
-  }
-  
-  if (!process.env.MONGODB_URI) {
-    throw new Error('Please define the MONGODB_URI environment variable');
-  }
-
-  const db = await mongoose.connect(process.env.MONGODB_URI);
-  cachedDb = db;
-  return db;
+  if (cachedDb) return cachedDb;
+  if (!process.env.MONGODB_URI) throw new Error('Please define the MONGODB_URI environment variable');
+  cachedDb = await mongoose.connect(process.env.MONGODB_URI);
+  return cachedDb;
 }
 
-// Schema and Model for a Report matching the frontend structure
+const userSchema = new mongoose.Schema({
+  name: { type: String, trim: true, maxlength: 100 },
+  email: { type: String, required: true, unique: true, trim: true, lowercase: true },
+  passwordHash: { type: String, required: true, select: false },
+  role: { type: String, enum: ['user', 'admin'], default: 'user', required: true }
+}, { timestamps: true });
+
 const reportSchema = new mongoose.Schema({
   title: { type: String, required: true },
   description: { type: String, required: true },
   location: { type: String, required: true },
   category: { type: String, required: true },
   severity: { type: String, required: true },
-  status: { type: String, default: 'reported' }, // 'reported', 'progress', 'fixed'
+  status: { type: String, enum: REPORT_STATUSES, default: 'Pending', required: true },
   reporter: { type: String, default: 'Anonymous' },
+  reporterEmail: { type: String, default: '' },
+  reporterPhone: { type: String, default: '' },
+  reporterId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   lat: { type: Number },
   lng: { type: Number },
   date: { type: Date, default: Date.now }
 });
 
-// Avoid OverwriteModelError in serverless environments
+const User = mongoose.models.User || mongoose.model('User', userSchema);
 const Report = mongoose.models.Report || mongoose.model('Report', reportSchema);
 
-// Routes
-app.get('/api', (req, res) => {
-  res.json({ message: 'Welcome to the Road Safety Portal API!' });
+function getTokenFromRequest(req) {
+  const authorization = req.get('authorization');
+  if (authorization?.startsWith('Bearer ')) return authorization.slice(7);
+  const cookie = req.get('cookie') || '';
+  const item = cookie.split(';').map(part => part.trim()).find(part => part.startsWith('roadsafe_session='));
+  return item ? decodeURIComponent(item.slice('roadsafe_session='.length)) : null;
+}
+
+function publicUser(user) {
+  return { id: user._id.toString(), name: user.name || '', email: user.email, role: user.role };
+}
+
+async function requireAuthenticated(req, res, next) {
+  try {
+    const payload = verifyToken(getTokenFromRequest(req));
+    if (!payload) return res.status(401).json({ error: 'Unauthorized' });
+    await connectToDatabase();
+    const user = await User.findById(payload.sub);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+    req.user = user;
+    return next();
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'Authentication is unavailable' });
+  }
+}
+
+async function requireAdmin(req, res, next) {
+  await requireAuthenticated(req, res, () => {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+    return next();
+  });
+}
+
+async function attachUserWhenAuthenticated(req, res, next) {
+  const token = getTokenFromRequest(req);
+  if (!token) return next();
+  try {
+    await connectToDatabase();
+    const payload = verifyToken(token);
+    if (payload) req.user = await User.findById(payload.sub);
+  } catch (err) {
+    console.error(err);
+  }
+  return next();
+}
+
+function setSessionCookie(res, token) {
+  const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
+  res.set('Set-Cookie', `roadsafe_session=${encodeURIComponent(token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${TOKEN_TTL_SECONDS}${secure}`);
+}
+
+function clearSessionCookie(res) {
+  res.set('Set-Cookie', 'roadsafe_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0');
+}
+
+function formatReport(report) {
+  const plain = report.toObject ? report.toObject() : report;
+  return { ...plain, id: plain._id.toString() };
+}
+
+app.get('/api', (req, res) => res.json({ message: 'Welcome to the Road Safety Portal API!' }));
+
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { name, email, password } = req.body || {};
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'role')) return res.status(400).json({ error: 'Role cannot be set during registration' });
+    if (!email || !/^\S+@\S+\.\S+$/.test(email) || !password || password.length < 8) {
+      return res.status(400).json({ error: 'A valid email and password of at least 8 characters are required' });
+    }
+    await connectToDatabase();
+    const normalizedEmail = email.trim().toLowerCase();
+    if (await User.exists({ email: normalizedEmail })) return res.status(409).json({ error: 'An account with this email already exists' });
+    const user = await User.create({ name: String(name || '').trim(), email: normalizedEmail, passwordHash: hashPassword(password), role: 'user' });
+    setSessionCookie(res, createSessionToken(user._id));
+    return res.status(201).json({ user: publicUser(user) });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'Unable to register account' });
+  }
 });
 
-// Get all reports
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body || {};
+    if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
+    await connectToDatabase();
+    const user = await User.findOne({ email: String(email).trim().toLowerCase() }).select('+passwordHash');
+    if (!user || !verifyPassword(password, user.passwordHash)) return res.status(401).json({ error: 'Invalid email or password' });
+    setSessionCookie(res, createSessionToken(user._id));
+    return res.json({ user: publicUser(user) });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'Unable to sign in' });
+  }
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  clearSessionCookie(res);
+  res.status(204).end();
+});
+
+app.get('/api/auth/me', requireAuthenticated, (req, res) => res.json({ user: publicUser(req.user) }));
+
 app.get('/api/reports', async (req, res) => {
   try {
     await connectToDatabase();
     const reports = await Report.find().sort({ date: -1 });
-    
-    // Map _id to id for frontend compatibility
-    const formattedReports = reports.map(r => ({
-      ...r.toObject(),
-      id: r._id.toString()
-    }));
-    
-    res.json(formattedReports);
+    res.json(reports.map(formatReport));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch reports' });
   }
 });
 
-// Create a new report
-app.post('/api/reports', async (req, res) => {
+app.get('/api/reports/mine', requireAuthenticated, async (req, res) => {
   try {
-    await connectToDatabase();
-    const newReport = new Report({
-      title: req.body.title,
-      description: req.body.description,
-      location: req.body.location,
-      category: req.body.category,
-      severity: req.body.severity,
-      status: req.body.status || 'reported',
-      reporter: req.body.reporter || 'Anonymous',
-      lat: req.body.lat,
-      lng: req.body.lng,
-      date: req.body.date || new Date()
-    });
-    const savedReport = await newReport.save();
-    
-    // Send back with id
-    res.status(201).json({
-      ...savedReport.toObject(),
-      id: savedReport._id.toString()
-    });
+    const reports = await Report.find({ reporterId: req.user._id }).sort({ date: -1 });
+    res.json(reports.map(formatReport));
   } catch (err) {
     console.error(err);
-    res.status(400).json({ error: 'Failed to create report' });
+    res.status(500).json({ error: 'Failed to fetch your reports' });
   }
 });
 
-// Export the Express API for Vercel
+app.post('/api/reports', attachUserWhenAuthenticated, async (req, res) => {
+  try {
+    await connectToDatabase();
+    const body = req.body || {};
+    const report = new Report({
+      title: body.title,
+      description: body.description,
+      location: body.location,
+      category: body.category,
+      severity: body.severity,
+      status: 'Pending',
+      reporter: req.user?.name || body.reporter || 'Anonymous',
+      reporterEmail: req.user?.email || body.reporterEmail || '',
+      reporterPhone: body.reporterPhone || '',
+      reporterId: req.user?._id || null,
+      lat: body.lat,
+      lng: body.lng,
+      date: body.date || new Date()
+    });
+    const savedReport = await report.save();
+    return res.status(201).json(formatReport(savedReport));
+  } catch (err) {
+    console.error(err);
+    return res.status(400).json({ error: 'Failed to create report' });
+  }
+});
+
+app.patch('/api/reports/:id/status', requireAdmin, async (req, res) => {
+  const { status } = req.body || {};
+  if (!REPORT_STATUSES.includes(status)) return res.status(400).json({ error: 'Invalid report status' });
+  if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid report id' });
+  try {
+    const report = await Report.findByIdAndUpdate(req.params.id, { status }, { new: true, runValidators: true });
+    if (!report) return res.status(404).json({ error: 'Report not found' });
+    return res.json(formatReport(report));
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'Failed to update report status' });
+  }
+});
+
 module.exports = app;
+module.exports.requireAdmin = requireAdmin;
+module.exports.REPORT_STATUSES = REPORT_STATUSES;
