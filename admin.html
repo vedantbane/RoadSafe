@@ -8,46 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
-<style>
-/* Keep admin navigation controls separated at desktop widths. */
-.nav-links {
-  gap: 0.75rem;
-}
-
-/* Keep all report actions visible instead of creating an overflowing grid column. */
-.admin-status-control {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.65rem;
-}
-
-.admin-status-control label {
-  flex: 0 0 100%;
-}
-
-.admin-status-control select {
-  flex: 1 1 12rem;
-}
-
-.admin-status-control .btn {
-  flex: 0 0 auto;
-}
-
-.admin-delete-report {
-  display: inline-flex;
-  visibility: visible;
-  opacity: 1;
-}
-
-@media (max-width: 480px) {
-  .admin-status-control select,
-  .admin-status-control .btn {
-    flex: 1 1 100%;
-    width: 100%;
-  }
-}
-</style>
+<link rel="stylesheet" href="css/admin.css">
 </head>
 <body>
 <nav class="navbar">
