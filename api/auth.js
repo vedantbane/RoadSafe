@@ -21,15 +21,21 @@ function signToken(payload) {
 
 function verifyToken(token) {
   if (!token || typeof token !== 'string') return null;
-  const [body, signature] = token.split('.');
-  if (!body || !signature) return null;
-  const expected = crypto.createHmac('sha256', getTokenSecret()).update(body).digest('base64url');
+  const parts = token.split('.');
+  if (parts.length !== 2 || !parts[0] || !parts[1]) return null;
+  const [body, signature] = parts;
+  let expected;
+  try {
+    expected = crypto.createHmac('sha256', getTokenSecret()).update(body).digest('base64url');
+  } catch {
+    return null;
+  }
   const provided = Buffer.from(signature);
   const expectedBuffer = Buffer.from(expected);
   if (provided.length !== expectedBuffer.length || !crypto.timingSafeEqual(provided, expectedBuffer)) return null;
   try {
     const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));
-    if (!payload.sub || !payload.exp || payload.exp <= Math.floor(Date.now() / 1000)) return null;
+    if (!payload || typeof payload.sub !== 'string' || !payload.sub || !Number.isFinite(payload.exp) || payload.exp <= Math.floor(Date.now() / 1000)) return null;
     return payload;
   } catch {
     return null;
@@ -42,15 +48,21 @@ function createSessionToken(userId) {
 }
 
 function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
+  if (typeof password !== 'string' || password.length < 8) throw new Error('Password must be at least 8 characters');
   return `${salt}:${crypto.scryptSync(password, salt, 64).toString('hex')}`;
 }
 
 function verifyPassword(password, storedHash) {
+  if (typeof password !== 'string') return false;
   const [salt, savedHash] = String(storedHash || '').split(':');
-  if (!salt || !savedHash) return false;
-  const candidate = Buffer.from(crypto.scryptSync(password, salt, 64).toString('hex'), 'hex');
-  const saved = Buffer.from(savedHash, 'hex');
-  return candidate.length === saved.length && crypto.timingSafeEqual(candidate, saved);
+  if (!salt || !savedHash || !/^[a-f0-9]+$/i.test(savedHash)) return false;
+  try {
+    const candidate = Buffer.from(crypto.scryptSync(password, salt, 64).toString('hex'), 'hex');
+    const saved = Buffer.from(savedHash, 'hex');
+    return candidate.length === saved.length && crypto.timingSafeEqual(candidate, saved);
+  } catch {
+    return false;
+  }
 }
 
 module.exports = { TOKEN_TTL_SECONDS, createSessionToken, hashPassword, verifyPassword, verifyToken };
