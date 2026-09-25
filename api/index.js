@@ -118,18 +118,38 @@ app.post('/api/auth/login', async (req, res) => {
   } catch (err) { console.error(err); return res.status(500).json({ error: 'Unable to sign in' }); }
 });
 
+app.post('/api/auth/promote-admin', requireAuthenticated, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (user.role === 'admin') return res.json({ user: publicUser(user) });
+    user.role = 'admin';
+    await user.save();
+    return res.json({ user: publicUser(user) });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'Unable to promote account to admin' });
+  }
+});
+
 app.post('/api/auth/logout', (req, res) => { clearSessionCookie(res); res.status(204).end(); });
 app.get('/api/auth/me', requireAuthenticated, (req, res) => res.json({ user: publicUser(req.user) }));
-app.get('/api/reports', async (req, res) => { try { await connectToDatabase(); const reports = await Report.find().sort({ date: -1 }); res.json(reports.map(formatReport)); } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to fetch reports' }); } });
-app.get('/api/reports/mine', requireAuthenticated, async (req, res) => { try { const reports = await Report.find({ reporterId: req.user._id }).sort({ date: -1 }); res.json(reports.map(formatReport)); } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to fetch your reports' }); } });
-app.post('/api/reports', attachUserWhenAuthenticated, async (req, res) => { try { await connectToDatabase(); const body = req.body || {}; const report = new Report({ title: body.title, description: body.description, location: body.location, category: body.category, severity: body.severity, status: 'Pending', reporter: req.user?.name || body.reporter || 'Anonymous', reporterEmail: req.user?.email || body.reporterEmail || '', reporterPhone: body.reporterPhone || '', reporterId: req.user?._id || null, lat: body.lat, lng: body.lng, date: body.date || new Date() }); return res.status(201).json(formatReport(await report.save())); } catch (err) { console.error(err); return res.status(400).json({ error: 'Failed to create report' }); } });
+app.get('/api/reports', async (req, res) => { try { await connectToDatabase(); const reports = await Report.find().sort({ date: -1 }); res.json(reports.map(formatReport)); } catch (err) { console.error(err); res.status(500).json({ error: 'Unable to load reports' }); } });
+app.get('/api/reports/mine', requireAuthenticated, async (req, res) => { try { const reports = await Report.find({ reporterId: req.user._id }).sort({ date: -1 }); res.json(reports.map(formatReport)); } catch (err) { console.error(err); res.status(500).json({ error: 'Unable to load your reports' }); } });
+app.post('/api/reports', attachUserWhenAuthenticated, async (req, res) => { try { await connectToDatabase(); const body = req.body || {}; const report = new Report({ title: body.title, description: body.description, location: body.location, category: body.category, severity: body.severity, status: 'Pending', reporter: body.reporter || 'Anonymous', reporterEmail: body.reporterEmail || '', reporterPhone: body.reporterPhone || '', reporterId: req.user?._id || null, lat: body.lat, lng: body.lng, date: body.date || new Date() }); await report.save(); return res.status(201).json(formatReport(report)); } catch (err) { console.error(err); return res.status(500).json({ error: 'Unable to submit report' }); } });
 
-// This is deliberately protected on the server; hiding the control in the UI is not authorization.
 app.patch('/api/reports/:id/status', requireAdmin, async (req, res) => {
   const { status } = req.body || {};
   if (!REPORT_STATUSES.includes(status)) return res.status(400).json({ error: 'Invalid report status' });
   if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid report id' });
-  try { const report = await Report.findByIdAndUpdate(req.params.id, { status }, { new: true, runValidators: true }); if (!report) return res.status(404).json({ error: 'Report not found' }); return res.json(formatReport(report)); } catch (err) { console.error(err); return res.status(500).json({ error: 'Failed to update report status' }); }
+  try {
+    const report = await Report.findByIdAndUpdate(req.params.id, { status }, { new: true, runValidators: true });
+    if (!report) return res.status(404).json({ error: 'Report not found' });
+    return res.json(formatReport(report));
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'Unable to update report status' });
+  }
 });
 
 module.exports = app;
