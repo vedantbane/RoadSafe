@@ -442,7 +442,7 @@ async function initAccountNavigation() {
 }
 
 function reportCard(report, includeReporter = false) {
-  return `<article class="report-card"><div class="report-body"><h3>${escapeHtml(report.title)}</h3><div class="report-meta"><span>${escapeHtml(report.location)}</span></div><div class="report-meta"><span class="severity-badge ${severityClass(report.severity)}">${escapeHtml(report.severity).toUpperCase()}</span><span>${escapeHtml(report.category)}</span>${statusBadge(report.status)}</div><p class="report-desc">${escapeHtml(report.description)}</p>${includeReporter ? `<div class="report-meta"><span>Reporter: ${escapeHtml(report.reporter || 'Anonymous')}</span>${report.reporterEmail ? `<span>${escapeHtml(report.reporterEmail)}</span>` : ''}</div>` : ''}<div class="report-footer"><span>${formatDate(report.date)}</span></div></div></article>`;
+  return `<article class="report-card"><div class="report-body"><h3>${escapeHtml(report.title)}</h3><div class="report-meta"><span>${escapeHtml(report.location)}</span></div><div class="report-meta"><span class="severity-badge ${severityClass(report.severity)}">${String(report.severity || '').toUpperCase()}</span><span>${escapeHtml(report.category)}</span>${statusBadge(report.status)}</div><p class="report-desc">${escapeHtml(report.description)}</p><div class="report-footer"><span>■ ${escapeHtml(report.reporter || 'Anonymous')}</span><span>${formatDate(report.date)}</span></div>${includeReporter && report.reporterEmail ? `<div class="report-contact"><span>${escapeHtml(report.reporterEmail)}</span></div>` : ''}</div></article>`;
 }
 
 function initAccountPage() {
@@ -452,6 +452,7 @@ function initAccountPage() {
   const authPanel = document.getElementById('authPanel');
   const promotePanel = document.getElementById('adminPromotionPanel');
   const promoteButton = document.getElementById('promoteAdminButton');
+  const adminPasscodeInput = document.getElementById('adminPasscodeInput');
   if (!loginForm && !registerForm && !accountPanel) return;
 
   async function renderAccount() {
@@ -487,14 +488,25 @@ function initAccountPage() {
   }
 
   promoteButton?.addEventListener('click', async () => {
-    const confirmed = window.confirm('Promote this account to admin so it can manage road reports?');
-    if (!confirmed) return;
-    const response = await fetch('/api/auth/promote-admin', { method: 'POST', credentials: 'same-origin' });
+    const passcode = (adminPasscodeInput?.value || '').trim();
+    if (!passcode) {
+      showToast('Enter the master admin passcode to continue', 'error');
+      adminPasscodeInput?.focus();
+      return;
+    }
+
+    const response = await fetch('/api/auth/promote-admin', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ passcode })
+    });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
       showToast(data.error || 'Unable to promote this account', 'error');
       return;
     }
+    if (adminPasscodeInput) adminPasscodeInput.value = '';
     showToast('Admin access granted');
     await initAccountNavigation();
     renderAccount();
@@ -549,7 +561,7 @@ function initAdminDashboard() {
     if (user.role !== 'admin') {
       if (errorBox) {
         errorBox.hidden = false;
-        errorBox.innerHTML = '<h3>Admin access required</h3><p>Use the Promote to admin button from your account page.</p>';
+        errorBox.innerHTML = '<h3>Admin access required</h3><p>Use the master admin passcode from the account page to promote your account.</p>';
       }
       grid.innerHTML = '<div class="empty-state"><h3>Admin access required</h3><p>Promote this account to admin to continue.</p></div>';
       return;
