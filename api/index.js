@@ -138,6 +138,18 @@ app.get('/api/reports', async (req, res) => { try { await connectToDatabase(); c
 app.get('/api/reports/mine', requireAuthenticated, async (req, res) => { try { const reports = await Report.find({ reporterId: req.user._id }).sort({ date: -1 }); res.json(reports.map(formatReport)); } catch (err) { console.error(err); res.status(500).json({ error: 'Unable to load your reports' }); } });
 app.post('/api/reports', attachUserWhenAuthenticated, async (req, res) => { try { await connectToDatabase(); const body = req.body || {}; const report = new Report({ title: body.title, description: body.description, location: body.location, category: body.category, severity: body.severity, status: 'Pending', reporter: body.reporter || 'Anonymous', reporterEmail: body.reporterEmail || '', reporterPhone: body.reporterPhone || '', reporterId: req.user?._id || null, lat: body.lat, lng: body.lng, date: body.date || new Date() }); await report.save(); return res.status(201).json(formatReport(report)); } catch (err) { console.error(err); return res.status(500).json({ error: 'Unable to submit report' }); } });
 
+app.delete('/api/reports/:id', requireAdmin, async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid report id' });
+  try {
+    const report = await Report.findByIdAndDelete(req.params.id);
+    if (!report) return res.status(404).json({ error: 'Report not found' });
+    return res.json({ success: true, id: req.params.id });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'Unable to delete report' });
+  }
+});
+
 app.patch('/api/reports/:id/status', requireAdmin, async (req, res) => {
   const { status } = req.body || {};
   if (!REPORT_STATUSES.includes(status)) return res.status(400).json({ error: 'Invalid report status' });
