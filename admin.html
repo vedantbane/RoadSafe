@@ -10,9 +10,39 @@
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-<nav class="navbar"><div class="nav-container"><a href="index.html" class="logo"><span class="logo-icon">RS</span>RoadSafe</a><div class="nav-links"><a href="index.html">Home</a><a href="reports.html">View Reports</a><a href="account.html">Account</a><a href="admin.html" class="active">Admin</a></div><div class="nav-actions"><button class="theme-toggle" aria-label="Toggle theme">Theme</button></div></div></nav>
-<div class="page-header"><h1>Admin Dashboard</h1><p>Review community reports and keep their progress current.</p></div>
-<section class="section"><div class="container"><div class="admin-intro"><h2>Reports</h2><p>Reporter details are visible here only to administrators.</p></div><div class="admin-reports-grid" id="adminReportsGrid"></div></div></section>
+<nav class="navbar">
+<div class="nav-container">
+<a href="index.html" class="logo"><span class="logo-icon">RS</span>RoadSafe</a>
+<div class="nav-links">
+<a href="index.html">Home</a>
+<a href="reports.html">View Reports</a>
+<a href="account.html">Account</a>
+<a href="admin.html" class="active">Admin</a>
+</div>
+<div class="nav-actions">
+<button class="theme-toggle" aria-label="Toggle theme">Theme</button>
+</div>
+</div>
+</nav>
+<div class="page-header">
+<h1>Admin Dashboard</h1>
+<p>Review community reports and keep their progress current.</p>
+</div>
+<section class="section">
+<div class="container">
+<div class="admin-intro">
+<div>
+<h2>Reports</h2>
+<p>Reporter details are visible here only to administrators.</p>
+</div>
+<a class="btn btn-outline" href="account.html">Back to account</a>
+</div>
+<div id="adminError" class="empty-state" hidden></div>
+<div class="admin-reports-grid" id="adminReportsGrid">
+<div class="empty-state"><h3>Loading reports…</h3><p>Checking administrator access.</p></div>
+</div>
+</div>
+</section>
 <script src="js/app.js"></script>
 </body>
 </html>
