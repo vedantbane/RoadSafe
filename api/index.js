@@ -27,19 +27,11 @@ const userSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 const reportSchema = new mongoose.Schema({
-  title: { type: String, required: true },
-  description: { type: String, required: true },
-  location: { type: String, required: true },
-  category: { type: String, required: true },
-  severity: { type: String, required: true },
-  status: { type: String, enum: REPORT_STATUSES, default: 'Pending', required: true },
-  reporter: { type: String, default: 'Anonymous' },
-  reporterEmail: { type: String, default: '' },
-  reporterPhone: { type: String, default: '' },
-  reporterId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
-  lat: { type: Number },
-  lng: { type: Number },
-  date: { type: Date, default: Date.now }
+  title: { type: String, required: true }, description: { type: String, required: true }, location: { type: String, required: true },
+  category: { type: String, required: true }, severity: { type: String, required: true },
+  status: { type: String, enum: REPORT_STATUSES, default: 'Pending', required: true }, reporter: { type: String, default: 'Anonymous' },
+  reporterEmail: { type: String, default: '' }, reporterPhone: { type: String, default: '' },
+  reporterId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null }, lat: { type: Number }, lng: { type: Number }, date: { type: Date, default: Date.now }
 });
 
 const User = mongoose.models.User || mongoose.model('User', userSchema);
@@ -47,10 +39,11 @@ const Report = mongoose.models.Report || mongoose.model('Report', reportSchema);
 
 function getTokenFromRequest(req) {
   const authorization = req.get('authorization');
-  if (authorization?.startsWith('Bearer ')) return authorization.slice(7);
+  if (authorization?.startsWith('Bearer ')) return authorization.slice(7).trim();
   const cookie = req.get('cookie') || '';
   const item = cookie.split(';').map(part => part.trim()).find(part => part.startsWith('roadsafe_session='));
-  return item ? decodeURIComponent(item.slice('roadsafe_session='.length)) : null;
+  if (!item) return null;
+  try { return decodeURIComponent(item.slice('roadsafe_session='.length)); } catch { return null; }
 }
 
 function publicUser(user) {
@@ -73,7 +66,7 @@ async function requireAuthenticated(req, res, next) {
 }
 
 async function requireAdmin(req, res, next) {
-  await requireAuthenticated(req, res, () => {
+  return requireAuthenticated(req, res, () => {
     if (req.user.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
     return next();
   });
@@ -86,9 +79,7 @@ async function attachUserWhenAuthenticated(req, res, next) {
     await connectToDatabase();
     const payload = verifyToken(token);
     if (payload) req.user = await User.findById(payload.sub);
-  } catch (err) {
-    console.error(err);
-  }
+  } catch (err) { console.error(err); }
   return next();
 }
 
@@ -96,15 +87,8 @@ function setSessionCookie(res, token) {
   const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
   res.set('Set-Cookie', `roadsafe_session=${encodeURIComponent(token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${TOKEN_TTL_SECONDS}${secure}`);
 }
-
-function clearSessionCookie(res) {
-  res.set('Set-Cookie', 'roadsafe_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0');
-}
-
-function formatReport(report) {
-  const plain = report.toObject ? report.toObject() : report;
-  return { ...plain, id: plain._id.toString() };
-}
+function clearSessionCookie(res) { res.set('Set-Cookie', 'roadsafe_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0'); }
+function formatReport(report) { const plain = report.toObject ? report.toObject() : report; return { ...plain, id: plain._id.toString() }; }
 
 app.get('/api', (req, res) => res.json({ message: 'Welcome to the Road Safety Portal API!' }));
 
@@ -112,103 +96,40 @@ app.post('/api/auth/register', async (req, res) => {
   try {
     const { name, email, password } = req.body || {};
     if (Object.prototype.hasOwnProperty.call(req.body || {}, 'role')) return res.status(400).json({ error: 'Role cannot be set during registration' });
-    if (!email || !/^\S+@\S+\.\S+$/.test(email) || !password || password.length < 8) {
-      return res.status(400).json({ error: 'A valid email and password of at least 8 characters are required' });
-    }
+    if (!email || !/^\S+@\S+\.\S+$/.test(String(email)) || typeof password !== 'string' || password.length < 8) return res.status(400).json({ error: 'A valid email and password of at least 8 characters are required' });
     await connectToDatabase();
-    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedEmail = String(email).trim().toLowerCase();
     if (await User.exists({ email: normalizedEmail })) return res.status(409).json({ error: 'An account with this email already exists' });
     const user = await User.create({ name: String(name || '').trim(), email: normalizedEmail, passwordHash: hashPassword(password), role: 'user' });
     setSessionCookie(res, createSessionToken(user._id));
     return res.status(201).json({ user: publicUser(user) });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: 'Unable to register account' });
-  }
+  } catch (err) { console.error(err); return res.status(500).json({ error: 'Unable to register account' }); }
 });
 
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body || {};
-    if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
+    if (typeof email !== 'string' || typeof password !== 'string' || !email.trim() || !password) return res.status(400).json({ error: 'Email and password are required' });
     await connectToDatabase();
-    const user = await User.findOne({ email: String(email).trim().toLowerCase() }).select('+passwordHash');
+    const user = await User.findOne({ email: email.trim().toLowerCase() }).select('+passwordHash');
     if (!user || !verifyPassword(password, user.passwordHash)) return res.status(401).json({ error: 'Invalid email or password' });
     setSessionCookie(res, createSessionToken(user._id));
     return res.json({ user: publicUser(user) });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: 'Unable to sign in' });
-  }
+  } catch (err) { console.error(err); return res.status(500).json({ error: 'Unable to sign in' }); }
 });
 
-app.post('/api/auth/logout', (req, res) => {
-  clearSessionCookie(res);
-  res.status(204).end();
-});
-
+app.post('/api/auth/logout', (req, res) => { clearSessionCookie(res); res.status(204).end(); });
 app.get('/api/auth/me', requireAuthenticated, (req, res) => res.json({ user: publicUser(req.user) }));
+app.get('/api/reports', async (req, res) => { try { await connectToDatabase(); const reports = await Report.find().sort({ date: -1 }); res.json(reports.map(formatReport)); } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to fetch reports' }); } });
+app.get('/api/reports/mine', requireAuthenticated, async (req, res) => { try { const reports = await Report.find({ reporterId: req.user._id }).sort({ date: -1 }); res.json(reports.map(formatReport)); } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to fetch your reports' }); } });
+app.post('/api/reports', attachUserWhenAuthenticated, async (req, res) => { try { await connectToDatabase(); const body = req.body || {}; const report = new Report({ title: body.title, description: body.description, location: body.location, category: body.category, severity: body.severity, status: 'Pending', reporter: req.user?.name || body.reporter || 'Anonymous', reporterEmail: req.user?.email || body.reporterEmail || '', reporterPhone: body.reporterPhone || '', reporterId: req.user?._id || null, lat: body.lat, lng: body.lng, date: body.date || new Date() }); return res.status(201).json(formatReport(await report.save())); } catch (err) { console.error(err); return res.status(400).json({ error: 'Failed to create report' }); } });
 
-app.get('/api/reports', async (req, res) => {
-  try {
-    await connectToDatabase();
-    const reports = await Report.find().sort({ date: -1 });
-    res.json(reports.map(formatReport));
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to fetch reports' });
-  }
-});
-
-app.get('/api/reports/mine', requireAuthenticated, async (req, res) => {
-  try {
-    const reports = await Report.find({ reporterId: req.user._id }).sort({ date: -1 });
-    res.json(reports.map(formatReport));
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to fetch your reports' });
-  }
-});
-
-app.post('/api/reports', attachUserWhenAuthenticated, async (req, res) => {
-  try {
-    await connectToDatabase();
-    const body = req.body || {};
-    const report = new Report({
-      title: body.title,
-      description: body.description,
-      location: body.location,
-      category: body.category,
-      severity: body.severity,
-      status: 'Pending',
-      reporter: req.user?.name || body.reporter || 'Anonymous',
-      reporterEmail: req.user?.email || body.reporterEmail || '',
-      reporterPhone: body.reporterPhone || '',
-      reporterId: req.user?._id || null,
-      lat: body.lat,
-      lng: body.lng,
-      date: body.date || new Date()
-    });
-    const savedReport = await report.save();
-    return res.status(201).json(formatReport(savedReport));
-  } catch (err) {
-    console.error(err);
-    return res.status(400).json({ error: 'Failed to create report' });
-  }
-});
-
+// This is deliberately protected on the server; hiding the control in the UI is not authorization.
 app.patch('/api/reports/:id/status', requireAdmin, async (req, res) => {
   const { status } = req.body || {};
   if (!REPORT_STATUSES.includes(status)) return res.status(400).json({ error: 'Invalid report status' });
   if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid report id' });
-  try {
-    const report = await Report.findByIdAndUpdate(req.params.id, { status }, { new: true, runValidators: true });
-    if (!report) return res.status(404).json({ error: 'Report not found' });
-    return res.json(formatReport(report));
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: 'Failed to update report status' });
-  }
+  try { const report = await Report.findByIdAndUpdate(req.params.id, { status }, { new: true, runValidators: true }); if (!report) return res.status(404).json({ error: 'Report not found' }); return res.json(formatReport(report)); } catch (err) { console.error(err); return res.status(500).json({ error: 'Failed to update report status' }); }
 });
 
 module.exports = app;
