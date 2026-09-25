@@ -1,120 +1,22 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Report a Road Issue – RoadSafe</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Report a Road Issue – RoadSafe</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/style.css">
 </head>
-
 <body>
-    <nav class="navbar">
-        <div class="nav-container">
-            <a href="index.html" class="logo">
-                <span class="logo-icon">■■</span>
-                RoadSafe
-            </a>
-            <div class="nav-links">
-                <a href="index.html">Home</a>
-                <a href="report.html" class="active">Report</a>
-                <a href="reports.html">View Reports</a>
-                <a href="tips.html">Safety Tips</a>
-                <a href="about.html">About</a>
-            </div>
-            <div class="nav-actions">
-                <button class="theme-toggle" aria-label="Toggle theme">■</button>
-                <a href="report.html" class="btn btn-primary">Report Issue</a>
-            </div>
-            <button class="hamburger" aria-label="Menu">
-                <span></span><span></span><span></span>
-            </button>
-        </div>
-    </nav>
-    <div class="page-header">
-        <h1>Report a Road Hazard</h1>
-        <p>Help us fix dangerous spots. Your report can save lives.</p>
-    </div>
-    <section class="section">
-        <div class="container">
-            <form class="form-card" id="reportForm">
-                <div class="form-group">
-                    <label for="title">Issue Title <span class="req">*</span></label>
-                    <input type="text" id="title" class="form-control" placeholder="e.g. Large pothole near bus stop"
-                        required>
-                </div>
-                <div class="form-group">
-                    <label for="location">Location <span class="req">*</span></label>
-                    <div class="location-row">
-                        <input type="text" id="location" class="form-control" placeholder="Street, area, landmark, city"
-                            required>
-                        <button type="button" class="btn btn-secondary btn-sm" id="getLocation">■ Use My
-                            Location</button>
-                    </div>
-                    <input type="hidden" id="lat" value="">
-                    <input type="hidden" id="lng" value="">
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="category">Category <span class="req">*</span></label>
-                        <select id="category" class="form-control" required>
-                            <option value="Pothole">Pothole</option>
-                            <option value="Crack">Road Crack</option>
-                            <option value="Debris">Debris / Obstacle</option>
-                            <option value="Hazard">Open Manhole / Hazard</option>
-                            <option value="Other">Other</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="reporter">Your Name</label>
-                        <input type="text" id="reporter" class="form-control"
-                            placeholder="Optional – Anonymous if empty">
-                    </div>
-                    <div class="form-group">
-                        <label for="reporterEmail">Email Address</label>
-                        <input type="email" id="reporterEmail" class="form-control"
-                            placeholder="For updates (Optional)">
-                    </div>
-                    <div class="form-group">
-                        <label for="reporterPhone">Phone Number</label>
-                        <input type="tel" id="reporterPhone" class="form-control" placeholder="Optional">
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label>Severity <span class="req">*</span></label>
-                    <div class="severity-options">
-                        <div class="severity-option low">
-                            <input type="radio" name="severity" id="sev-low" value="low">
-                            <label for="sev-low">Low</label>
-                        </div>
-                        <div class="severity-option medium">
-                            <input type="radio" name="severity" id="sev-medium" value="medium" checked>
-                            <label for="sev-medium">Medium</label>
-                        </div>
-                        <div class="severity-option high">
-                            <input type="radio" name="severity" id="sev-high" value="high">
-                            <label for="sev-high">High</label>
-                        </div>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label for="description">Description <span class="req">*</span></label>
-                    <textarea id="description" class="form-control"
-                        placeholder="Describe the issue, size, depth, danger to vehicles/pedestrians..."
-                        required></textarea>
-                </div>
-
-                <button type="submit" class="btn btn-primary" style="width:100%;padding:1rem;font-size:1.05rem;">
-                    Submit Report
-                </button>
-            </form>
-        </div>
-    </section>
-
-    <script src="js/app.js"></script>
-</body>
-
-</html>
+<nav class="navbar top-navbar"><div class="nav-container"><a href="/index.html" class="logo"><span class="logo-icon">RS</span>RoadSafe</a><div class="nav-links"><a href="/index.html">Home</a><a href="/report.html" class="active">Report</a><a href="/reports.html">Reports</a><a href="/account.html">Account</a><a href="/admin.html">Admin</a></div><div class="nav-actions"><button class="theme-toggle" type="button" aria-label="Toggle theme">◐</button><a href="/report.html" class="btn btn-primary">Report Issue</a></div></div></nav>
+<div class="page-header"><h1>Report a Road Hazard</h1><p>Help us fix dangerous spots. Your report can save lives.</p></div>
+<section class="section"><div class="container"><form class="form-card" id="reportForm">
+<div class="form-group"><label for="title">Issue Title <span class="req">*</span></label><input type="text" id="title" class="form-control" placeholder="e.g. Large pothole near bus stop" required></div>
+<div class="form-group"><label for="location">Location <span class="req">*</span></label><div class="location-row"><input type="text" id="location" class="form-control" placeholder="Street, area, landmark, city" required><button type="button" class="btn btn-secondary btn-sm" id="getLocation">Use My Location</button></div><input type="hidden" id="lat"><input type="hidden" id="lng"></div>
+<div class="form-row"><div class="form-group"><label for="category">Category <span class="req">*</span></label><select id="category" class="form-control" required><option>Pothole</option><option>Crack</option><option>Debris</option><option>Hazard</option><option>Other</option></select></div><div class="form-group"><label for="reporter">Your Name</label><input id="reporter" class="form-control" placeholder="Optional – Anonymous if empty"></div><div class="form-group"><label for="reporterEmail">Email Address</label><input id="reporterEmail" type="email" class="form-control"></div><div class="form-group"><label for="reporterPhone">Phone Number</label><input id="reporterPhone" type="tel" class="form-control"></div></div>
+<div class="form-group"><label>Severity <span class="req">*</span></label><div class="severity-options"><div class="severity-option low"><input type="radio" name="severity" id="sev-low" value="low"><label for="sev-low">Low</label></div><div class="severity-option medium"><input type="radio" name="severity" id="sev-medium" value="medium" checked><label for="sev-medium">Medium</label></div><div class="severity-option high"><input type="radio" name="severity" id="sev-high" value="high"><label for="sev-high">High</label></div></div></div>
+<div class="form-group"><label for="description">Description <span class="req">*</span></label><textarea id="description" class="form-control" required></textarea></div><button type="submit" class="btn btn-primary" style="width:100%">Submit Report</button>
+</form></div></section>
+<nav class="bottom-nav" aria-label="Primary navigation"><a href="/index.html" class="nav-item"><span class="icon">⌂</span><span class="label">Home</span></a><a href="/report.html" class="nav-item active"><span class="icon">＋</span><span class="label">Report</span></a><a href="/reports.html" class="nav-item"><span class="icon">🗺</span><span class="label">Map</span></a><a href="/tips.html" class="nav-item"><span class="icon">💡</span><span class="label">Tips</span></a><a href="/about.html" class="nav-item"><span class="icon">ⓘ</span><span class="label">About</span></a></nav>
+<script src="/js/app.js"></script>
+</body></html>
