@@ -10,7 +10,7 @@
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-<nav class="navbar"><div class="nav-container"><a href="index.html" class="logo"><span class="logo-icon">RS</span>RoadSafe</a><div class="nav-links"><a href="index.html">Home</a><a href="report.html">Report</a><a href="reports.html">View Reports</a><span class="account-nav-slot"></span></div><div class="nav-actions"><button class="theme-toggle" aria-label="Toggle theme">Theme</button></div></div></nav>
+<nav class="navbar"><div class="nav-container"><a href="index.html" class="logo"><span class="logo-icon">RS</span>RoadSafe</a><div class="nav-links"><a href="index.html">Home</a><a href="report.html">Report</a><a href="reports.html">Reports</a><a href="account.html">Account</a></div></div></nav>
 <div class="page-header"><h1>Your Account</h1><p>Sign in to keep track of reports submitted from your account.</p></div>
 <section class="section"><div class="container">
 <div id="authPanel" class="auth-layout">
@@ -21,7 +21,11 @@
 <div class="account-heading"><div><h2 id="accountName"></h2><p>Your submitted reports</p></div><button class="btn btn-outline" id="logoutButton" type="button">Sign out</button></div>
 <div class="form-card" id="adminPromotionPanel" hidden>
   <h2>Admin access</h2>
-  <p>Promote your account so you can review and update road reports.</p>
+  <p>Enter the master admin passcode to promote this account.</p>
+  <div class="form-group">
+    <label for="adminPasscodeInput">Master admin passcode</label>
+    <input class="form-control" id="adminPasscodeInput" type="password" autocomplete="off" placeholder="Enter admin passcode">
+  </div>
   <button class="btn btn-primary" id="promoteAdminButton" type="button">Promote to admin</button>
 </div>
 <div class="reports-grid" id="myReportsGrid"></div>
